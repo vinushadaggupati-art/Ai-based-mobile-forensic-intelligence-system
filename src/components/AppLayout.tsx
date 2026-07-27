@@ -1,4 +1,5 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { Shield, LayoutDashboard, Smartphone, Database, Sparkles, FileText, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CASE } from "@/lib/forensic-data";
@@ -11,7 +12,7 @@ const NAV = [
   { to: "/report", label: "Report", icon: FileText },
 ] as const;
 
-export function AppLayout() {
+export function AppLayout({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
     <div className="min-h-screen flex text-foreground">
