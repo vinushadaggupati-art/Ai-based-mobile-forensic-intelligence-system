@@ -64,7 +64,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="text-xs text-muted-foreground font-mono">{CASE.investigator}</div>
         </header>
         <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+          {children}
         </main>
       </div>
     </div>
