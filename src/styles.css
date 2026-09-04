@@ -98,7 +98,9 @@
       radial-gradient(ellipse 60% 50% at 90% 100%, oklch(0.28 0.08 260 / 0.25), transparent);
     background-attachment: fixed;
   }
-  .font-mono { font-family: var(--font-mono); }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
 }
 
 @utility grid-forensic {

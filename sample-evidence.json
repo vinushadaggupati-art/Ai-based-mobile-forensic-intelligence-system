@@ -1,0 +1,45 @@
+[
+  {
+    "id": "EVD-1",
+    "evidenceType": "SMS",
+    "sourceFile": "sample-evidence.json",
+    "timestamp": "2026-08-23T00:00:00Z",
+    "metadata": {
+      "sender": "+15550001",
+      "direction": "incoming",
+      "note": "suspicious SMS"
+    },
+    "sha256": "sample-hash-1",
+    "content": {
+      "from": "+15550001",
+      "body": "Meet me at the old warehouse tonight. Bring the package."
+    },
+    "fileSize": 180,
+    "importedAt": "2026-08-23T00:00:00Z",
+    "originalFilename": "sample-evidence.json",
+    "mode": "real",
+    "integrityStatus": "Integrity Verified"
+  },
+  {
+    "id": "EVD-2",
+    "evidenceType": "GPS",
+    "sourceFile": "sample-evidence.json",
+    "timestamp": "2026-08-22T23:00:00Z",
+    "metadata": {
+      "place": "Warehouse District",
+      "lat": "40.7128",
+      "lng": "-74.0060"
+    },
+    "sha256": "sample-hash-2",
+    "content": {
+      "place": "Warehouse District",
+      "lat": "40.7128",
+      "lng": "-74.0060"
+    },
+    "fileSize": 200,
+    "importedAt": "2026-08-23T00:00:00Z",
+    "originalFilename": "sample-evidence.json",
+    "mode": "real",
+    "integrityStatus": "Integrity Verified"
+  }
+]

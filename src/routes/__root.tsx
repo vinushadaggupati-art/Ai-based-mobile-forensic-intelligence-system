@@ -78,7 +78,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Forensic Intelligence System" },
-      { name: "description", content: "AI-assisted mobile forensic investigation platform for Android and iOS evidence." },
+      {
+        name: "description",
+        content: "AI-assisted mobile forensic investigation platform for Android and iOS evidence.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

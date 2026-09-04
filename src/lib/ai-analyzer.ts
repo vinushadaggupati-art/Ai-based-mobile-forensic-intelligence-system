@@ -1,30 +1,85 @@
-// Deterministic forensic analyzer that mimics an LLM assistant.
-// It inspects the collected artifacts and produces prioritized findings,
-// pattern insights, and an investigator summary. Swap this module for a
-// real Lovable AI / Ollama call without changing any UI.
+// Forensic Intelligence AI Analyzer
+// Integrates Autopsy 4.23.1 carved deleted evidence with Ollama local LLM inference
 
+import { SMS, CALLS, BROWSER, APPS, GPS, CASE, DEVICES, type Priority } from "./forensic-data";
+import { AUTOPSY_CARVED_EVIDENCE } from "./autopsy-data";
 import {
-  SMS, CALLS, BROWSER, APPS, GPS, type Priority,
-} from "./forensic-data";
+  runForensicLLMAnalysis,
+  type OllamaAnalysisResult,
+  type OllamaFinding,
+  DEFAULT_MODEL,
+  DEFAULT_OLLAMA_ENDPOINT,
+} from "./ollama-client";
 
 export interface Finding {
   id: string;
   priority: Priority;
-  category: "Communication" | "Location" | "Application" | "Browser" | "Pattern";
+  category: "Communication" | "Location" | "Application" | "Browser" | "Pattern" | "Anti-Forensics";
   title: string;
   evidenceIds: string[];
   rationale: string;
 }
 
 const SUSPICIOUS_KEYWORDS = [
-  "burn", "wipe", "delete the logs", "cold wallet", "btc", "bitcoin",
-  "encrypted channel", "drop", "mixer", "sd card",
+  "burn",
+  "wipe",
+  "delete the logs",
+  "cold wallet",
+  "btc",
+  "bitcoin",
+  "encrypted channel",
+  "drop",
+  "mixer",
+  "sd card",
 ];
 
-export function analyze(): { findings: Finding[]; summary: string; stats: { high: number; medium: number; low: number } } {
+export async function analyzeWithOllama(options?: {
+  endpoint?: string;
+  model?: string;
+  onProgress?: (msg: string) => void;
+}): Promise<OllamaAnalysisResult> {
+  return runForensicLLMAnalysis(
+    {
+      caseInfo: CASE,
+      devices: DEVICES,
+      sms: SMS,
+      calls: CALLS,
+      gps: GPS,
+      browser: BROWSER,
+      apps: APPS,
+      autopsyCarved: AUTOPSY_CARVED_EVIDENCE,
+    },
+    {
+      endpoint: options?.endpoint || DEFAULT_OLLAMA_ENDPOINT,
+      model: options?.model || DEFAULT_MODEL,
+      onProgress: options?.onProgress,
+    },
+  );
+}
+
+export function analyze(): {
+  findings: Finding[];
+  summary: string;
+  stats: { high: number; medium: number; low: number };
+  autopsyCarvedCount: number;
+} {
   const findings: Finding[] = [];
 
-  // 1. Suspicious SMS keywords
+  // 1. Autopsy Carved Evidence Recovery Findings
+  const carvedCount = AUTOPSY_CARVED_EVIDENCE.length;
+  if (carvedCount > 0) {
+    findings.push({
+      id: "f-autopsy-carved",
+      priority: "high",
+      category: "Anti-Forensics",
+      title: `${carvedCount} deleted artifacts recovered by Autopsy 4.23.1 & The Sleuth Kit`,
+      evidenceIds: AUTOPSY_CARVED_EVIDENCE.map((e) => e.id),
+      rationale:
+        "Autopsy carved deleted records from SQLite freelists (mmssms.db), WAL journals (msgstore.db-wal), and unallocated NAND blocks. Recovered messages ('burn the phone after', 'delete the logs') prove intentional evidence destruction.",
+    });
+  }
+
+  // 2. Suspicious SMS keywords (including carved messages)
   const flaggedSms = SMS.filter((m) =>
     SUSPICIOUS_KEYWORDS.some((k) => m.body.toLowerCase().includes(k)),
   );
@@ -40,7 +95,7 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     });
   }
 
-  // 2. Late-night communication cluster
+  // 3. Late-night communication cluster
   const nightCalls = CALLS.filter((c) => {
     const h = new Date(c.timestamp).getUTCHours();
     return h < 5 || h >= 22;
@@ -57,9 +112,9 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     });
   }
 
-  // 3. Foreign / unknown numbers
+  // 4. Foreign / unknown numbers
   const foreign = [...SMS, ...CALLS].filter((r) =>
-    /^(\+44|\+7|\+86|\+971)/.test(("number" in r ? r.number : "")),
+    /^(\+44|\+7|\+86|\+971)/.test("number" in r ? r.number : ""),
   );
   if (foreign.length) {
     findings.push({
@@ -73,7 +128,7 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     });
   }
 
-  // 4. Suspicious apps
+  // 5. Anti-forensic Apps
   const susApps = APPS.filter((a) => a.suspicious);
   if (susApps.length) {
     findings.push({
@@ -87,10 +142,8 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     });
   }
 
-  // 5. Browser
-  const susBrowser = BROWSER.filter((b) =>
-    /wipe|mixer|onion|tor|bitcoin/i.test(b.title + b.url),
-  );
+  // 6. Browser History & Carved Darknet Search
+  const susBrowser = BROWSER.filter((b) => /wipe|mixer|onion|tor|bitcoin/i.test(b.title + b.url));
   if (susBrowser.length) {
     findings.push({
       id: "f-browser",
@@ -103,23 +156,21 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     });
   }
 
-  // 6. Location anomaly
-  const anomalyLocs = GPS.filter((g) =>
-    /Ocean Beach|SFO Airport/.test(g.place),
-  );
+  // 7. Location Anomaly & Exit Strategy (Beach + Airport)
+  const anomalyLocs = GPS.filter((g) => /Ocean Beach|SFO Airport/.test(g.place));
   if (anomalyLocs.length) {
     findings.push({
       id: "f-gps",
-      priority: "medium",
+      priority: "high",
       category: "Location",
-      title: `Off-pattern GPS locations at 02:35 and 04:18 UTC`,
-      evidenceIds: anomalyLocs.map((g) => g.id),
+      title: `Off-pattern GPS locations at 02:35 and 04:18 UTC (Beach + SFO Airport)`,
+      evidenceIds: [...anomalyLocs.map((g) => g.id), "CARVED-IMG-01", "CARVED-IMG-02"],
       rationale:
-        "Device travelled from Mission District to a remote beach parking lot and then to SFO Airport within two hours — coinciding with the outgoing 'transfer 0.6 BTC' message.",
+        "Device travelled from Mission District to Ocean Beach Lot 4 at 02:35 UTC (matching carved 1.2 BTC rendezvous photo) and then to SFO Airport Terminal 2 at 04:18 UTC (matching carved boarding pass to London Heathrow).",
     });
   }
 
-  // 7. Low-priority routine record
+  // 8. Low-priority routine record
   findings.push({
     id: "f-routine",
     priority: "low",
@@ -127,7 +178,7 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
     title: "Routine benign traffic (family, banking OTP)",
     evidenceIds: ["s3", "s5", "s7", "c4"],
     rationale:
-      "Contact with 'Mom' and standard bank OTP appear consistent with normal device usage and are unlikely to be relevant to the investigation.",
+      "Contact with 'Mom' and standard bank OTP appear consistent with normal device usage and establish the baseline activity of the owner.",
   });
 
   const stats = {
@@ -137,16 +188,17 @@ export function analyze(): { findings: Finding[]; summary: string; stats: { high
   };
 
   const summary = [
-    `Case FIS-2026-0417 shows a coherent pattern of pre-meditated evidence destruction and suspected cryptocurrency-based value transfer between 2026-07-23 21:00 UTC and 2026-07-25 01:00 UTC.`,
-    `The device owner communicated with contact "Kai M." and at least one UK-based unknown number using language consistent with illicit transfers ("cold wallet", "burn the phone", "delete the logs").`,
-    `Within the same 72-hour window, Orbot, Wickr Me, and iShredder were installed, and browser history contains searches for Android wiping procedures and Tor-based bitcoin mixers.`,
-    `GPS telemetry places the device at Ocean Beach at 02:35 UTC and SFO Airport at 04:18 UTC, matching the outgoing SMS about a 0.6 BTC transfer.`,
-    `Recommended next steps: preserve all flagged artifacts for chain of custody, subpoena the +44 and +7 numbers, and correlate wallet addresses against public blockchain records.`,
+    `FORENSIC CASE SUMMARY — ${CASE.caseNumber} (${CASE.title}):`,
+    `Mobile device forensic intelligence correlates active artifacts with ${carvedCount} deleted items recovered via Autopsy 4.23.1 and The Sleuth Kit (TSK).`,
+    `1. DELETED EVIDENCE RECOVERY: Autopsy SQLite Freelist carving and WAL journal reconstruction successfully recovered critical deleted communications between the device owner and contact "Kai M." explicit in their instructions ("yeah wallet address confirmed. burn the phone after", "delete the logs and wipe the sd card").`,
+    `2. CRYPTOCURRENCY & EXFILTRATION: A carved WhatsApp record reveals a 1.2 BTC transfer to cold wallet storage. Telemetry confirms subject's arrival at Ocean Beach Lot 4 at 02:35 UTC, supported by a carved photo with intact EXIF GPS tags.`,
+    `3. ANTI-FORENSICS ATTEMPT: The installation of iShredder, Wickr Me, and Tor within 72 hours of seizure, combined with Chrome searches for Android wiping guides, demonstrates deliberate preparation to destroy digital evidence.`,
+    `4. FLIGHT RISK & ESCAPE: Autopsy carved an unallocated JPEG of a London Heathrow boarding pass at SFO Airport Terminal 2 at 04:15 UTC.`,
+    `RECOMMENDATION: Preserve all carved SQLite unallocated blocks and SHA-256 evidence digests for chain-of-custody submission under ISO/IEC 27037 and NIST SP 800-101.`,
   ].join("\n\n");
 
-  // Deterministic sort: high -> medium -> low
   const order: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
   findings.sort((a, b) => order[a.priority] - order[b.priority]);
 
-  return { findings, summary, stats };
+  return { findings, summary, stats, autopsyCarvedCount: carvedCount };
 }
